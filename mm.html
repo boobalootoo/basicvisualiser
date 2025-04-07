@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Starling Murmuration Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+    canvas {
+      display: block;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="visualizer"></canvas>
+
+  <script>
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+
+    const flockSize = 150;
+    const flock = [];
+
+    class Bird {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = Math.random() * 2 - 1;
+        this.vy = Math.random() * 2 - 1;
+        this.size = 2 + Math.random() * 2;
+        this.color = 'black';
+      }
+
+      update(audioInfluence) {
+        this.vx += (Math.random() - 0.5) * 0.5;
+        this.vy += (Math.random() - 0.5) * 0.5;
+
+        const speed = audioInfluence / 50;
+        this.vx = Math.max(Math.min(this.vx, speed), -speed);
+        this.vy = Math.max(Math.min(this.vy, speed), -speed);
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < 0) this.x = canvas.width;
+        if (this.x > canvas.width) this.x = 0;
+        if (this.y < 0) this.y = canvas.height;
+        if (this.y > canvas.height) this.y = 0;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < flockSize; i++) {
+      flock.push(new Bird());
+    }
+
+    async function initVisualizer() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        source.connect(analyser);
+
+        function draw() {
+          requestAnimationFrame(draw);
+
+          analyser.getByteFrequencyData(dataArray);
+          const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          flock.forEach(bird => {
+            bird.update(avg);
+            bird.draw();
+          });
+        }
+
+        draw();
+      } catch (err) {
+        alert('Microphone access denied or not supported.');
+        console.error(err);
+      }
+    }
+
+    initVisualizer();
+  </script>
+</body>
+</html>
