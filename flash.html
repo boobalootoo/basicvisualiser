@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timbre Shape Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="visualizer"></canvas>
+
+  <script>
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+
+    async function init() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+
+        const bufferLength = analyser.fftSize;
+        const timeData = new Uint8Array(bufferLength);
+
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        function draw() {
+          requestAnimationFrame(draw);
+          analyser.getByteTimeDomainData(timeData);
+
+          ctx.fillStyle = 'black';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+
+          // Time-domain waveform (top view)
+          ctx.beginPath();
+          ctx.strokeStyle = 'lime';
+          ctx.lineWidth = 2;
+          for (let i = 0; i < bufferLength; i++) {
+            const x = (i / bufferLength) * canvas.width;
+            const y = (timeData[i] / 255.0) * canvas.height;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          // Timbre loop shape (Lissajous-style)
+          ctx.beginPath();
+          ctx.strokeStyle = 'cyan';
+          const size = Math.min(canvas.width, canvas.height) / 3;
+          for (let i = 0; i < bufferLength; i++) {
+            const angle = (i / bufferLength) * Math.PI * 2;
+            const radius = ((timeData[i] - 128) / 128.0) * size;
+
+            const x = centerX + Math.cos(angle) * radius;
+            const y = centerY + Math.sin(angle) * radius;
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+
+        draw();
+      } catch (err) {
+        alert('Microphone access is needed for this visualizer.');
+        console.error(err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
